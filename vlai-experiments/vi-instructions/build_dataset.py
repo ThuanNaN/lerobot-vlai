@@ -44,8 +44,9 @@ def fork_dataset(src_root: Path, dst_root: Path, translations: dict[str, str]) -
         if entry.name == "meta":
             continue
         dst_link = dst_root / entry.name
-        if not dst_link.exists():
-            dst_link.symlink_to(entry.resolve())
+        if dst_link.exists() or dst_link.is_symlink():
+            dst_link.unlink()
+        dst_link.symlink_to(entry.resolve())
 
     shutil.copy2(src_root / "meta" / "info.json", dst_meta / "info.json")
     stats_path = src_root / "meta" / "stats.json"

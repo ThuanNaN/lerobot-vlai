@@ -76,3 +76,45 @@ def test_fork_dataset_symlinks_data_and_translates_tasks(tmp_path):
 
     ep_df = pd.read_parquet(dst_root / "meta" / "episodes" / "chunk-000" / "file-000.parquet")
     assert ep_df["tasks"].iloc[0] == ["nhấc cái bát lên"]
+
+
+def _write_fake_dataset_with_marker(root: Path, marker_content: str) -> None:
+    """Write a fake dataset with a distinguishing marker file in data/."""
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "marker.txt").write_text(marker_content, encoding="utf-8")
+    (root / "data" / "dummy.parquet").write_text("dummy")
+    meta = root / "meta"
+    meta.mkdir()
+    (meta / "info.json").write_text(json.dumps({"repo_id": "fake/libero"}))
+    (meta / "stats.json").write_text(json.dumps({}))
+
+    from lerobot.datasets.io_utils import write_tasks
+
+    tasks_df = pd.DataFrame({"task_index": [0]}, index=pd.Index(["pick up the bowl"], name="task"))
+    write_tasks(tasks_df, root)
+
+    episodes_dir = meta / "episodes" / "chunk-000"
+    episodes_dir.mkdir(parents=True)
+    ep_df = pd.DataFrame({"episode_index": [0], "tasks": [["pick up the bowl"]]})
+    ep_df.to_parquet(episodes_dir / "file-000.parquet")
+
+
+def test_fork_dataset_refreshes_stale_symlinks_on_rerun(tmp_path):
+    """Regression test: re-forking with different src_root should update symlinks."""
+    src1_root, src2_root, dst_root = tmp_path / "src1", tmp_path / "src2", tmp_path / "dst"
+
+    _write_fake_dataset_with_marker(src1_root, "src1_marker")
+    _write_fake_dataset_with_marker(src2_root, "src2_marker")
+
+    translations = {"pick up the bowl": "nhấc cái bát lên"}
+
+    # First fork: src1 -> dst
+    fork_dataset(src1_root, dst_root, translations)
+    assert (dst_root / "data").is_symlink()
+    assert (dst_root / "data" / "marker.txt").read_text(encoding="utf-8") == "src1_marker"
+
+    # Second fork (same dst, different src): src2 -> dst
+    # This should refresh the symlink to point to src2, not keep stale src1 symlink
+    fork_dataset(src2_root, dst_root, translations)
+    assert (dst_root / "data").is_symlink()
+    assert (dst_root / "data" / "marker.txt").read_text(encoding="utf-8") == "src2_marker"
