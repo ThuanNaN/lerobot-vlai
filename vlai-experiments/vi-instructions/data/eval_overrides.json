@@ -1,0 +1,50 @@
+{
+  "libero_spatial": {
+    "0": "nhấc cái bát đen ở giữa cái đĩa và cái chén nhỏ lên rồi đặt nó lên đĩa",
+    "1": "nhấc cái bát đen bên cạnh cái chén nhỏ lên rồi đặt nó lên đĩa",
+    "2": "nhấc cái bát đen ở giữa bàn lên rồi đặt nó lên đĩa",
+    "3": "nhấc cái bát đen trên hộp bánh quy lên rồi đặt nó lên đĩa",
+    "4": "nhấc cái bát đen trong ngăn kéo trên cùng của tủ gỗ lên rồi đặt nó lên đĩa",
+    "5": "nhấc cái bát đen trên cái chén nhỏ lên rồi đặt nó lên đĩa",
+    "6": "nhấc cái bát đen bên cạnh hộp bánh quy lên rồi đặt nó lên đĩa",
+    "7": "nhấc cái bát đen trên bếp lên rồi đặt nó lên đĩa",
+    "8": "nhấc cái bát đen bên cạnh đĩa lên rồi đặt nó lên đĩa",
+    "9": "nhấc cái bát đen trên tủ gỗ lên rồi đặt nó lên đĩa"
+  },
+  "libero_object": {
+    "0": "nhấc hộp súp chữ cái lên rồi đặt vào giỏ",
+    "1": "nhấc hộp phô mai kem lên rồi đặt vào giỏ",
+    "2": "nhấc chai sốt salad lên rồi đặt vào giỏ",
+    "3": "nhấc chai sốt bbq lên rồi đặt vào giỏ",
+    "4": "nhấc chai tương cà lên rồi đặt vào giỏ",
+    "5": "nhấc chai sốt cà chua lên rồi đặt vào giỏ",
+    "6": "nhấc hộp bơ lên rồi đặt vào giỏ",
+    "7": "nhấc hộp sữa lên rồi đặt vào giỏ",
+    "8": "nhấc hộp bánh pudding sô-cô-la lên rồi đặt vào giỏ",
+    "9": "nhấc hộp nước cam lên rồi đặt vào giỏ"
+  },
+  "libero_goal": {
+    "0": "mở ngăn kéo giữa của tủ",
+    "1": "đặt cái bát lên bếp",
+    "2": "đặt chai rượu vang lên trên tủ",
+    "3": "mở ngăn kéo trên cùng và đặt cái bát vào bên trong",
+    "4": "đặt cái bát lên trên tủ",
+    "5": "đẩy cái đĩa ra phía trước bếp",
+    "6": "đặt phô mai kem vào bát",
+    "7": "bật bếp lên",
+    "8": "đặt cái bát lên đĩa",
+    "9": "đặt chai rượu vang lên giá"
+  },
+  "libero_10": {
+    "0": "đặt cả hộp súp chữ cái và chai sốt cà chua vào giỏ",
+    "1": "đặt cả hộp phô mai kem và hộp bơ vào giỏ",
+    "2": "bật bếp lên rồi đặt bình pha cà phê moka lên đó",
+    "3": "đặt cái bát đen vào ngăn kéo dưới cùng của tủ rồi đóng lại",
+    "4": "đặt cốc trắng lên đĩa bên trái và đặt cốc vàng trắng lên đĩa bên phải",
+    "5": "nhấc quyển sách lên và đặt vào ngăn phía sau của giỏ đựng đồ",
+    "6": "đặt cốc trắng lên đĩa và đặt bánh pudding sô-cô-la sang bên phải đĩa",
+    "7": "đặt cả hộp súp chữ cái và hộp phô mai kem vào giỏ",
+    "8": "đặt cả hai bình pha cà phê moka lên bếp",
+    "9": "đặt cốc vàng trắng vào lò vi sóng rồi đóng lại"
+  }
+}
