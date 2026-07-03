@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-
 import torch
 
 # Representative LIBERO-style imperative instructions, used only for this cheap
