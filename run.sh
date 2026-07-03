@@ -43,7 +43,7 @@ fi
   --batch_size="${BATCH_SIZE}" \
   --eval.batch_size=1 \
   --eval.n_episodes=1 \
-  --env_eval_freq=500 \
+  --env_eval_freq=1000 \
   "${WANDB_ARGS[@]}"
 
 # Benchmark: full LIBERO protocol (4 suites x 10 episodes = 400 episodes)
