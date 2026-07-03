@@ -127,6 +127,7 @@ class LiberoEnv(gym.Env):
         num_steps_wait: int = 10,
         control_mode: str = "relative",
         is_libero_plus: bool = False,
+        task_language_override: str | None = None,
     ):
         super().__init__()
         self.task_id = task_id
@@ -169,7 +170,9 @@ class LiberoEnv(gym.Env):
         # Extract task metadata without allocating GPU resources (safe before fork).
         task = task_suite.get_task(task_id)
         self.task = task.name
-        self.task_description = task.language
+        self.task_description = (
+            task_language_override if task_language_override is not None else task.language
+        )
         self._task_bddl_file = os.path.join(
             get_libero_path("bddl_files"), task.problem_folder, task.bddl_file
         )
@@ -396,6 +399,7 @@ def _make_env_fns(
     control_mode: str,
     camera_name_mapping: dict[str, str] | None = None,
     is_libero_plus: bool = False,
+    task_language_override: str | None = None,
 ) -> list[Callable[[], LiberoEnv]]:
     """Build n_envs factory callables for a single (suite, task_id)."""
 
@@ -413,6 +417,7 @@ def _make_env_fns(
             control_mode=control_mode,
             camera_name_mapping=camera_name_mapping,
             is_libero_plus=is_libero_plus,
+            task_language_override=task_language_override,
             **local_kwargs,
         )
 
@@ -454,6 +459,7 @@ def create_libero_envs(
 
     gym_kwargs = dict(gym_kwargs or {})
     task_ids_filter = gym_kwargs.pop("task_ids", None)  # optional: limit to specific tasks
+    task_language_overrides = gym_kwargs.pop("task_language_overrides", None)
 
     camera_names = parse_camera_names(camera_name)
     suite_names = [s.strip() for s in str(task).split(",") if s.strip()]
@@ -482,6 +488,9 @@ def create_libero_envs(
         cached_act_space: spaces.Space | None = None
         cached_metadata: dict[str, Any] | None = None
 
+        suite_overrides_raw = (task_language_overrides or {}).get(suite_name, {})
+        suite_overrides = {int(k): v for k, v in suite_overrides_raw.items()}
+
         for tid in selected:
             fns = _make_env_fns(
                 suite=suite,
@@ -495,6 +504,7 @@ def create_libero_envs(
                 control_mode=control_mode,
                 camera_name_mapping=camera_name_mapping,
                 is_libero_plus=is_libero_plus,
+                task_language_override=suite_overrides.get(tid),
             )
             if is_async:
                 lazy = _LazyAsyncVectorEnv(fns, cached_obs_space, cached_act_space, cached_metadata)

@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import abc
 import importlib
+import json
 from dataclasses import dataclass, field, fields
+from pathlib import Path
 from typing import Any
 
 import draccus
@@ -322,6 +324,7 @@ class HILSerlRobotEnvConfig(EnvConfig):
 class LiberoEnv(EnvConfig):
     task: str = "libero_10"  # can also choose libero_spatial, libero_object, etc.
     task_ids: list[int] | None = None
+    task_language_overrides_path: str | None = None
     fps: int = 30
     episode_length: int | None = None
     obs_type: str = "pixels_agent_pos"
@@ -415,6 +418,10 @@ class LiberoEnv(EnvConfig):
         }
         if self.task_ids is not None:
             kwargs["task_ids"] = self.task_ids
+        if self.task_language_overrides_path is not None:
+            kwargs["task_language_overrides"] = json.loads(
+                Path(self.task_language_overrides_path).read_text()
+            )
         return kwargs
 
     def create_envs(self, n_envs: int, use_async_envs: bool = False):
