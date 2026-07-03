@@ -52,6 +52,23 @@ uv run ruff check . && uv run ruff format .            # Lint + format directly
 - **`benchmarks/`** — Performance benchmarking scripts.
 - **Root files**: `pyproject.toml` (single source of truth for deps, build, tool config), `Makefile` (E2E test targets), `uv.lock`, `CONTRIBUTING.md` & `README.md` (general information).
 
+## This fork: SmolVLA + LIBERO Vietnamese-instructions project
+
+This is a customized fork whose active work adapts the SmolVLA + LIBERO training pipeline so the policy follows **Vietnamese** task instructions (language is input-only — no Vietnamese generation). Design and staged plan live in `docs/superpowers/specs/2026-07-02-smolvla-vietnamese-instructions-design.md` and `docs/superpowers/plans/2026-07-02-smolvla-vietnamese-instructions.md` — read these first before touching the pipeline.
+
+- **Run wrappers** (root, all source `.env` for `HF_USER` / `WANDB_API_KEY` / `MUJOCO_GL=egl`; copy `.env.example`):
+  - `run.sh` — baseline: train `smolvla` on `HuggingFaceVLA/libero` (English), then eval across all 4 LIBERO suites. Multi-GPU via `NUM_GPUS>1` → `accelerate launch`.
+  - `run_vi.sh` — Stage 2: LoRA finetune on the Vietnamese-forked dataset. Its `TARGET_MODULES` regex widens PEFT beyond SmolVLA's default (action-expert q/v only) to also adapt the VLM **text-model** attention layers — required for language adaptation.
+  - `run_eval_vi.sh <checkpoint> <output_dir>` — Stage 3: eval with Vietnamese instructions injected via `--env.task_language_overrides_path`.
+- **Key source modification**: eval instruction override. `lerobot-eval` on LIBERO sources the task string from the upstream `libero` package (English), **not** from the dataset — so translating the dataset alone does nothing at eval time. The knob added here: `EnvConfig.task_language_overrides_path` (`src/lerobot/envs/configs.py:327`) loads a per-suite/per-task JSON that `LiberoEnv` applies via `task_language_override` (`src/lerobot/envs/libero.py`).
+- **`vlai-experiments/vi-instructions/`** — the offline data/eval tooling (standalone scripts, not `lerobot.*` modules):
+  - `extract_tasks.py` / `validate_translations.py` — pull LIBERO task strings, validate `data/tasks_en.csv` → `data/tasks_vi.csv`.
+  - `build_dataset.py` — fork the LIBERO dataset with translated task strings.
+  - `build_eval_overrides.py` — generate `data/eval_overrides.json` consumed by `run_eval_vi.sh`.
+  - `diagnostics.py` — Stage 0 tokenizer-fertility / embedding sanity checks (no training).
+  - `compare_eval.py` — build a suite-vs-suite success-rate comparison table from `lerobot-eval` output.
+  - Tests live in `vlai-experiments/vi-instructions/tests/` and add the parent dir to `sys.path`; run with `uv run pytest vlai-experiments/vi-instructions/tests/ -q` (separate from the main `tests/` suite).
+
 ## Notes
 
 - **Mypy is gradual**: strict only for `lerobot.envs`, `lerobot.configs`, `lerobot.optim`, `lerobot.model`, `lerobot.cameras`, `lerobot.motors`, `lerobot.transport`. Add type annotations when modifying these modules.

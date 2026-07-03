@@ -8,13 +8,8 @@ if [[ -f "${SCRIPT_DIR}/.env" ]]; then
   set +a
 fi
 
-HF_USER="${HF_USER:?Set HF_USER (in .env or env) to your Hugging Face username}"
 TASK_SUITE="${TASK_SUITE:-libero_10}"
-STEPS="${STEPS:-100000}"
-BATCH_SIZE="${BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
-
-export MUJOCO_GL="${MUJOCO_GL:-egl}"
 
 WANDB_ARGS=()
 if [[ -n "${WANDB_API_KEY:-}" ]]; then
@@ -37,11 +32,11 @@ fi
   --env.type=libero \
   --env.task="${TASK_SUITE}" \
   --output_dir=./outputs/ \
-  --steps="${STEPS}" \
-  --batch_size="${BATCH_SIZE}" \
+  --steps=100000 \
+  --batch_size=8 \
   --eval.batch_size=1 \
   --eval.n_episodes=1 \
-  --env_eval_freq=1000 \
+  --env_eval_freq=2000 \
   "${WANDB_ARGS[@]}"
 
 # Benchmark: full LIBERO protocol (4 suites x 10 episodes = 400 episodes)
