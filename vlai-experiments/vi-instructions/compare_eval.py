@@ -9,13 +9,19 @@ def load_eval_info(path: Path) -> dict:
 
 
 def build_comparison_table(runs: dict[str, dict]) -> list[dict[str, str | float]]:
-    suites = sorted({suite for info in runs.values() for suite in info if suite != "overall"})
+    suites = sorted({suite for info in runs.values() for suite in info.get("per_group", {})})
     rows: list[dict[str, str | float]] = []
-    for suite in [*suites, "overall"]:
+    for suite in suites:
         row: dict[str, str | float] = {"suite": suite}
         for run_name, info in runs.items():
-            row[run_name] = info.get(suite, {}).get("pc_success", float("nan"))
+            row[run_name] = info.get("per_group", {}).get(suite, {}).get("pc_success", float("nan"))
         rows.append(row)
+
+    overall_row: dict[str, str | float] = {"suite": "overall"}
+    for run_name, info in runs.items():
+        overall_row[run_name] = info.get("overall", {}).get("pc_success", float("nan"))
+    rows.append(overall_row)
+
     return rows
 
 
