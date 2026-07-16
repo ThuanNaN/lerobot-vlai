@@ -40,16 +40,31 @@ def render_markdown_table(rows: list[dict[str, str | float]], run_names: list[st
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--vi-lora-on-vi", type=Path, required=True)
-    parser.add_argument("--en-baseline-on-en", type=Path, required=True)
-    parser.add_argument("--en-baseline-zero-shot-vi", type=Path, required=True)
+    parser = argparse.ArgumentParser(
+        description="Compare LIBERO eval_info.json runs. Pass --run NAME=PATH for each run "
+        "(order is preserved as table columns), e.g. "
+        "--run smolvla=outputs/eval_vi_smolvla/eval_info.json "
+        "--run smolvla-vi=outputs/eval_vi_vi/eval_info.json"
+    )
+    parser.add_argument(
+        "--run",
+        action="append",
+        required=True,
+        metavar="NAME=PATH",
+        help="A named eval_info.json to include (repeatable, at least two).",
+    )
     args = parser.parse_args()
 
-    runs = {
-        "vi_lora_on_vi": load_eval_info(args.vi_lora_on_vi),
-        "en_baseline_on_en": load_eval_info(args.en_baseline_on_en),
-        "en_baseline_zero_shot_vi": load_eval_info(args.en_baseline_zero_shot_vi),
-    }
+    runs: dict[str, dict] = {}
+    for spec in args.run:
+        if "=" not in spec:
+            parser.error(f"--run must be NAME=PATH, got: {spec!r}")
+        name, path = spec.split("=", 1)
+        if name in runs:
+            parser.error(f"duplicate run name: {name!r}")
+        runs[name] = load_eval_info(Path(path))
+    if len(runs) < 2:
+        parser.error("need at least two --run entries to compare")
+
     rows = build_comparison_table(runs)
     print(render_markdown_table(rows, list(runs.keys())))
