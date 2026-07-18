@@ -1,1 +1,0 @@
-Task 1: Setup pipeline SmolVLA + LIBERO
