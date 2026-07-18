@@ -27,6 +27,18 @@ OUTPUT_DIR="${OUTPUT_DIR:-./outputs/train_vi_${RUN_TAG}/}"
 SEED="${SEED:-1000}"
 STEPS="${STEPS:-8000}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
+# Recipe knob: true = frozen VLM, train only the action expert (the A/B recipe).
+# false = full finetune, unfreeze the whole VLM (escalation path — all ~450M params
+# trainable, watch for OOM; drop BATCH_SIZE if needed). See the runbook.
+TRAIN_EXPERT_ONLY="${TRAIN_EXPERT_ONLY:-true}"
+# Checkpoint / in-loop-eval / logging cadence. Defaults suit the short 8k frozen run;
+# long full-finetune runs override (e.g. SAVE_FREQ=10000 ENV_EVAL_FREQ=10000).
+SAVE_FREQ="${SAVE_FREQ:-20000}"
+ENV_EVAL_FREQ="${ENV_EVAL_FREQ:-1000}"
+LOG_FREQ="${LOG_FREQ:-250}"
+# SKIP_SYNC=1 lets a caller (e.g. the unattended driver) run `uv sync` once itself
+# before launching several arms in parallel, avoiding concurrent-sync lock contention.
+SKIP_SYNC="${SKIP_SYNC:-0}"
 
 export MUJOCO_GL="${MUJOCO_GL:-egl}"
 
@@ -35,7 +47,9 @@ if [[ -n "${WANDB_API_KEY:-}" ]]; then
   WANDB_ARGS=(--wandb.enable=true)
 fi
 
-uv sync --locked --extra smolvla --extra libero
+if [[ "${SKIP_SYNC}" != "1" ]]; then
+  uv sync --locked --extra smolvla --extra libero
+fi
 
 # Recipe: freeze the whole VLM backbone (train_expert_only=true) and train only the
 # action expert (~100M of 450M params). This isolates the backbone as the single A/B
@@ -48,7 +62,7 @@ uv run lerobot-train \
   --policy.repo_id="${HF_USER}/libero-vi-${RUN_TAG}" \
   --policy.vlm_model_name="${VLM_MODEL}" \
   --policy.load_vlm_weights=true \
-  --policy.train_expert_only=true \
+  --policy.train_expert_only="${TRAIN_EXPERT_ONLY}" \
   --dataset.repo_id="${DATASET_REPO}" \
   --dataset.root="${HOME}/.cache/huggingface/lerobot/${DATASET_REPO}" \
   --env.type=libero \
@@ -57,7 +71,9 @@ uv run lerobot-train \
   --seed="${SEED}" \
   --steps="${STEPS}" \
   --batch_size="${BATCH_SIZE}" \
+  --save_freq="${SAVE_FREQ}" \
+  --log_freq="${LOG_FREQ}" \
   --eval.batch_size=1 \
   --eval.n_episodes=1 \
-  --env_eval_freq=1000 \
+  --env_eval_freq="${ENV_EVAL_FREQ}" \
   "${WANDB_ARGS[@]}"
