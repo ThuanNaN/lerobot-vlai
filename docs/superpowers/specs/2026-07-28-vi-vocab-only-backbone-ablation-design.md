@@ -6,7 +6,7 @@ Isolate the **vocab-size confound** from the **language-pretraining effect** in 
 SmolVLA EN-vs-VI backbone A/B experiment. The VI backbone
 (`thuanan/SmolVLM2-500M-vi-stage1`) differs from the stock EN backbone
 (`HuggingFaceTB/SmolVLM2-500M-Video-Instruct`) in two ways simultaneously: it has a
-larger vocabulary (57,344 vs 49,280 tokens) *and* it was continued-pretrained on
+larger vocabulary (57,344 vs 49,280 tokens) _and_ it was continued-pretrained on
 Vietnamese multimodal data. The existing frozen-backbone result (Arm A `smolvla` 29.5%
 vs Arm B `smolvla-vi` 20.2%, gap −9.3, see
 [`outputs/report_smolvla_en_vs_vi.md`](../../../outputs/report_smolvla_en_vs_vi.md))
@@ -29,7 +29,7 @@ runbook [`docs/superpowers/runbooks/2026-07-14-smolvla-vs-smolvla-vi-backbone.md
   `outputs/report_smolvla_en_vs_vi.md`.
 - `outputs/eda_libero_suites.md` root-caused the `libero_spatial` weakness to
   action-expert grasp/place-timing robustness, not a language/vocab issue — but that
-  finding is about a *different* suite-level pattern, not this vocab-vs-pretraining
+  finding is about a _different_ suite-level pattern, not this vocab-vs-pretraining
   question.
 - `thuanan/SmolVLM2-500M-vi-stage1`'s README (HF Hub) confirms: 8,064 new Vietnamese
   BPE tokens were mean-initialized, then trained **jointly** with LoRA adapters
@@ -56,10 +56,14 @@ runbook [`docs/superpowers/runbooks/2026-07-14-smolvla-vs-smolvla-vi-backbone.md
    (`AutoModelForImageTextToText`, `AutoProcessor`).
 2. Load the tokenizer/processor from `thuanan/SmolVLM2-500M-vi-stage1` (57,344-token
    vocab, includes the 8,064 Vietnamese BPE tokens).
-3. `resize_token_embeddings(57344)` on the EN model's `embed_tokens` and `lm_head`.
-   Mean-init the 8,064 new rows as the mean of the existing 49,280 EN embedding
-   vectors — matching the original stage-1 init method, but with **no further
-   training** (no LoRA, no Vietnamese data) on top.
+3. `resize_token_embeddings(57344, mean_resizing=True)` on the EN model's
+   `embed_tokens` and `lm_head`. This does not copy a single mean vector into all
+   8,064 new rows; it samples each new row independently from a multivariate normal
+   distribution fitted to the existing 49,280 EN embedding vectors' mean and
+   covariance, so the new rows are distinct from each other (verified empirically:
+   new-row std ≈0.06, non-zero variance across rows) — matching the original stage-1
+   init method, but with **no further training** (no LoRA, no Vietnamese data) on top.
+   The new rows still carry zero genuine Vietnamese semantic content.
 4. Leave every other weight (attention, MLP, vision encoder, connector) exactly as the
    stock EN checkpoint — untouched.
 5. Save as a new standalone checkpoint: `outputs/backbones/smolvlm2_vi_vocab_only/`
@@ -72,7 +76,7 @@ New script: `vlai-experiments/vi-instructions/build_vocab_only_backbone.py`.
 
 > This is a different construction than the SmolVLA hybrid-checkpoint method in
 > [[smolvla-hybrid-backbone-gotchas]] (that swaps `vlm_with_expert.vlm.*` inside an
-> already-built SmolVLA policy). Here we build a standalone VLM backbone *before* any
+> already-built SmolVLA policy). Here we build a standalone VLM backbone _before_ any
 > SmolVLA-specific construction, to be passed as `VLM_MODEL` into the normal
 > `run_vi.sh` training entry point — SmolVLA's own `load_vlm_weights=True` path handles
 > wrapping it into a fresh policy.
@@ -126,7 +130,7 @@ Read overall `pc_success` plus per-suite, with particular attention to
   a larger embedding table alone makes the action expert's conditioning harder,
   regardless of whether the extra tokens carry learned Vietnamese semantics.
 - **Arm C ≪ Arm B (collapses toward 0%)** → confirms the VI-pretrained backbone's
-  *learned* representations (not merely having the right vocab) are what let Arm B
+  _learned_ representations (not merely having the right vocab) are what let Arm B
   reach 20.2% — consistent with the earlier hybrid zero-shot finding that vocab
   correctness alone was insufficient for cross-lingual transfer.
 - Anything in between: report as inconclusive at n=1 seed / 10 episodes-per-task
