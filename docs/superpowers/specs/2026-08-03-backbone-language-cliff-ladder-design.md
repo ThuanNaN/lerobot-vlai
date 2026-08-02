@@ -204,7 +204,7 @@ các run cũ (Arm A/B/C) vào ô `*_vi` qua bảng alias, **không đổi tên t
 
 ### 5.5 Luồng và đặt tên
 
-```
+```text
 pretrain_vi_backbone.py --data-fraction X
   → outputs/backbones/vi_dose_{10,25,50}/
   → validate_backbone.py            (chặn nếu fail)
