@@ -88,10 +88,16 @@ def subtoken_mean_init(
     return new_vocab_size
 
 
-def merge_stage1_adapter(base_model_id: str, adapter_dir: Path, tokenizer_dir: Path):
-    """Load base -> resize with sub-token mean -> apply adapter -> merge -> return."""
-    from peft import PeftModel
+def merge_stage1_adapter(base_model_id: str, adapter_dir: Path | None, tokenizer_dir: Path):
+    """Load base -> resize with sub-token mean -> apply adapter -> merge -> return.
 
+    `adapter_dir=None` builds the dose-zero rung of the language-cliff ladder: the same
+    pipeline, stopped before the adapter is applied. Going through this one function
+    rather than a separate script is what makes "dose 0" mean literally "identical
+    construction, zero Vietnamese training" -- any divergence in resize behaviour,
+    dtype, or save format would otherwise land exactly on the first segment of the
+    curve, where the cliff is expected.
+    """
     new_tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
     base_tokenizer = AutoTokenizer.from_pretrained(base_model_id)
     model = load_backbone_bf16(base_model_id)
@@ -99,12 +105,14 @@ def merge_stage1_adapter(base_model_id: str, adapter_dir: Path, tokenizer_dir: P
     old_vocab = model.get_input_embeddings().weight.shape[0]
     subtoken_mean_init(model, base_tokenizer, new_tokenizer, old_vocab, len(new_tokenizer))
 
-    peft_model = PeftModel.from_pretrained(model, adapter_dir)
-    merged = peft_model.merge_and_unload()
-    merged.config.vocab_size = len(new_tokenizer)
+    if adapter_dir is not None:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter_dir).merge_and_unload()
+    model.config.vocab_size = len(new_tokenizer)
 
     processor = AutoProcessor.from_pretrained(tokenizer_dir)
-    return merged, processor
+    return model, processor
 
 
 if __name__ == "__main__":
@@ -112,17 +120,36 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-model", default=EN_BACKBONE)
-    parser.add_argument("--adapter-dir", type=Path, required=True)
+    parser.add_argument(
+        "--adapter-dir",
+        type=Path,
+        default=None,
+        help="stage-1 checkpoint to merge; omit with --no-adapter for the dose-0 rung",
+    )
+    parser.add_argument(
+        "--no-adapter",
+        action="store_true",
+        default=False,
+        help="build the dose-0 anchor: resize with sub-token mean, apply nothing",
+    )
     parser.add_argument("--tokenizer-dir", type=Path, default=DEFAULT_TOKENIZER_DIR)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--overwrite", action="store_true", default=False)
     args = parser.parse_args()
     args.out_dir = args.out_dir.resolve()
 
+    if args.no_adapter and args.adapter_dir is not None:
+        parser.error("--no-adapter and --adapter-dir are mutually exclusive")
+    if not args.no_adapter and args.adapter_dir is None:
+        parser.error("pass --adapter-dir, or --no-adapter to build the dose-0 rung")
+
     if args.out_dir.exists() and any(args.out_dir.iterdir()) and not args.overwrite:
         raise FileExistsError(f"{args.out_dir} exists and is non-empty; pass --overwrite")
 
-    print(f"merging {args.adapter_dir} into {args.base_model} ...")
+    if args.no_adapter:
+        print(f"building dose-0 anchor from {args.base_model} (no adapter) ...")
+    else:
+        print(f"merging {args.adapter_dir} into {args.base_model} ...")
     model, processor = merge_stage1_adapter(args.base_model, args.adapter_dir, args.tokenizer_dir)
 
     vocab_size = len(processor.tokenizer)
@@ -137,9 +164,10 @@ if __name__ == "__main__":
     (args.out_dir / "build_metadata.json").write_text(
         json.dumps(
             {
-                "kind": "stage1_merged",
+                "kind": "dose_zero_anchor" if args.no_adapter else "stage1_merged",
+                "dose": 0.0 if args.no_adapter else None,
                 "base_model": args.base_model,
-                "adapter_dir": str(args.adapter_dir),
+                "adapter_dir": None if args.adapter_dir is None else str(args.adapter_dir),
                 "tokenizer_dir": str(args.tokenizer_dir),
                 "vocab_size": vocab_size,
                 "init_method": "subtoken_mean",
