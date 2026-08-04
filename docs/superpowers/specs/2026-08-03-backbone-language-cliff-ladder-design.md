@@ -98,10 +98,25 @@ của checkpoint train VI). Toàn bộ nhánh EN-train trong spec này là mới
 "backbone EN × dữ liệu EN" mà E3 của đề xuất gốc đòi hỏi — hai thí nghiệm gộp làm một.
 
 Backbone VI stage-1 (`thuanan/SmolVLM2-500M-vi-stage1`): ViOCRVQA ~19.7k, OpenViVQA ~9.1k,
-UIT-ViIC ~13.5k, mẫu VQA tiếng Anh chống quên, ViWiki ~25k; 2 epoch, batch hiệu dụng 48
-(4 × 3 GPU × 4 grad-accum), LR 1e-4 cosine, bf16, ảnh 1536px, LoRA r=32 α=64 trên attention
-+ MLP projection, cộng embedding tiếng Việt mới train. Code và dữ liệu stage-1 **vẫn còn**
-(người dùng xác nhận), nhưng **chưa nằm trong repo này**.
+UIT-ViIC ~13.5k, mẫu VQA tiếng Anh chống quên, ViWiki ~25k; 2 epoch, LR 1e-4 cosine, bf16,
+ảnh 1536px, LoRA r=32 α=64 trên attention + MLP projection, cộng embedding tiếng Việt mới
+train. Code và dữ liệu stage-1 **vẫn còn**, ở `~/Repository/smollm-vi`.
+
+> **Đính chính 2026-08-04 — batch hiệu dụng là 128, không phải 48.** Cả model card lẫn chú
+> thích trong `train_gpus.sh` đều ghi "48 (4 × 3 GPU × 4 grad-accum)", và spec này chép lại.
+> Sai. Đọc trực tiếp `checkpoints/vietnamese_stage1_3gpu_v2/training_args.bin`:
+> `per_device_train_batch_size=8`, `gradient_accumulation_steps=8`, `world_size=2` — tức
+> **8 × 2 × 8 = 128**, và chỉ dùng **2 GPU** dù thư mục tên là `_3gpu_v2`. Kiểm chứng số học:
+> mixture đầy đủ cho ~91.920 mẫu, × 2 epoch / 128 = 1436 bước, đúng bằng `global_step` của
+> checkpoint. Với batch 48 thì phải ra ~3830 bước.
+>
+> Hệ quả: **mọi mốc liều bắt buộc dùng 128**, nếu không thì batch size biến thiên cùng với
+> liều — đúng loại nhiễm bẩn mà `d0` anchor được dựng ra để tránh. `dose_backbone_driver.sh`
+> ép `NUM_GPUS=2, PER_DEVICE_BATCH=8, GRAD_ACCUM=8`. Không "tối ưu" thành 3 GPU: 3 không chia
+> hết 128 với grad-accum nguyên.
+>
+> Phát hiện khi lượt d10 đầu tiên chạy ra 382 bước thay vì ~143 như dự kiến. Lượt đó đã bị
+> huỷ và chạy lại với cấu hình đúng.
 
 ## 4. Thiết kế
 
