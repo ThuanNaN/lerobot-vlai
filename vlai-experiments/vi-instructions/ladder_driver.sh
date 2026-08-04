@@ -70,6 +70,12 @@ case "${PHASE}" in
   *)     echo "unknown phase: ${PHASE}" >&2; exit 1 ;;
 esac
 
+# LADDER_POINTS restricts this invocation to a subset, so rungs whose backbone already
+# exists can be started while the remaining backbones are still being built.
+if [[ -n "${LADDER_POINTS:-}" ]]; then
+  read -r -a POINTS <<< "${LADDER_POINTS}"
+fi
+
 SUFFIX=""
 [[ "${SEED}" != "1000" ]] && SUFFIX="_seed${SEED}"
 
@@ -86,7 +92,32 @@ pick_gpu() {
   done
 }
 
+point_complete() {  # final checkpoint plus both eval_info.json already on disk
+  local tag; tag="$(tag_for "$1")"
+  [[ -f "$(final_ckpt "$1")/model.safetensors" &&
+     -f "${REPO}/outputs/eval_${tag}_en/eval_info.json" &&
+     -f "${REPO}/outputs/eval_${tag}_vi/eval_info.json" ]]
+}
+
 log "=== ladder driver: phase=${PHASE} seed=${SEED} points=${POINTS[*]} train-lang=${LANG} ==="
+
+# Idempotency: drop rungs already finished by an earlier invocation, so this driver can
+# be restarted after a failure, or run first on a subset and later on the rest, without
+# redoing ~10h of training per rung.
+REMAINING=()
+for point in "${POINTS[@]}"; do
+  if point_complete "${point}"; then
+    log "${point}: already complete (checkpoint + both evals) -- skipping"
+  else
+    REMAINING+=("${point}")
+  fi
+done
+POINTS=("${REMAINING[@]}")
+if (( ${#POINTS[@]} == 0 )); then
+  log "=== nothing to do: every requested rung is already complete ==="
+  exit 0
+fi
+log "rungs to run: ${POINTS[*]}"
 
 # --- Gate: validate every backbone before committing any GPU time ------------------
 for point in "${POINTS[@]}"; do
@@ -119,6 +150,15 @@ while (( resolved < ${#POINTS[@]} )); do
     IFS='|' read -r path vocab <<< "$(backbone_for "${point}")"
     tag="$(tag_for "${point}")"
     log "launch ${tag} on GPU ${gpu} (backbone=${path})"
+    # DRY_RUN exists because this driver launches training with `setsid nohup`: killing
+    # the driver (timeout, Ctrl-C) does NOT kill jobs it already started, so testing the
+    # queue logic for real leaves orphaned 10-hour runs behind. Learned the hard way.
+    if [[ -n "${DRY_RUN:-}" ]]; then
+      log "  DRY_RUN: not launching"
+      LAUNCHED[$point]=1; RESOLVED[$point]=dry_run
+      next=$((next + 1)); resolved=$((resolved + 1))
+      continue
+    fi
     # Do NOT mkdir the output dir: lerobot-train's cfg.validate() requires it to not
     # already exist when resume=False, and fails with FileExistsError otherwise.
     setsid nohup env CUDA_VISIBLE_DEVICES="${gpu}" SKIP_SYNC=1 \
