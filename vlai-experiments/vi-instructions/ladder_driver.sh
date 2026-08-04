@@ -85,11 +85,19 @@ final_ckpt() {
 }
 training_alive() { pgrep -af "lerobot-train" 2>/dev/null | grep -q "libero-vi-$(tag_for "$1")"; }
 
+# One rung per GPU. A free-VRAM threshold alone is the wrong model here: SmolVLA needs
+# only ~6.3 GB, so a 24 GB card still looks "free" right after a job claims it and the
+# queue stacks every rung onto the same GPU. GPU_TAKEN records what this driver has
+# placed, and is cleared when a rung finishes its evals.
+declare -A GPU_TAKEN
+
 pick_gpu() {
-  nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,nounits |
+  local idx used total
   while IFS=', ' read -r idx used total; do
+    [[ -n "${GPU_TAKEN[$idx]:-}" ]] && continue
     if (( total - used > NEED_MIB )); then echo "${idx}"; return 0; fi
-  done
+  done < <(nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,nounits)
+  return 1
 }
 
 point_complete() {  # final checkpoint plus both eval_info.json already on disk
@@ -134,7 +142,7 @@ done
 log "all ${#POINTS[@]} backbones validated"
 
 # --- Queue ------------------------------------------------------------------------
-declare -A LAUNCHED RESOLVED
+declare -A LAUNCHED RESOLVED GPU_OF
 next=0
 resolved=0
 
@@ -155,7 +163,10 @@ while (( resolved < ${#POINTS[@]} )); do
     # queue logic for real leaves orphaned 10-hour runs behind. Learned the hard way.
     if [[ -n "${DRY_RUN:-}" ]]; then
       log "  DRY_RUN: not launching"
-      LAUNCHED[$point]=1; RESOLVED[$point]=dry_run
+      # Still claim the card, so a dry run exercises the real placement logic. Without
+      # this the dry run happily reports every rung on the same GPU and hides the very
+      # bug it is meant to catch.
+      LAUNCHED[$point]=1; RESOLVED[$point]=dry_run; GPU_TAKEN[$gpu]=1; GPU_OF[$point]="${gpu}"
       next=$((next + 1)); resolved=$((resolved + 1))
       continue
     fi
@@ -168,8 +179,28 @@ while (( resolved < ${#POINTS[@]} )); do
         SAVE_FREQ=10000 ENV_EVAL_FREQ=10000 LOG_FREQ=250 \
         ./run_vi.sh > "${OUT}/train_${tag}.log" 2>&1 < /dev/null &
     LAUNCHED[$point]=1
+    GPU_TAKEN[$gpu]=1
+    GPU_OF[$point]="${gpu}"
     next=$((next + 1))
-    sleep 180   # let the job claim its VRAM before pick_gpu is polled again
+
+    # Wait until the job has actually claimed VRAM before polling pick_gpu again.
+    # A fixed sleep is not enough: SmolVLA spends several minutes indexing the dataset
+    # and loading the backbone before it touches the GPU, so a short guard lets the next
+    # iteration see the same card as free and stack every rung onto one GPU. That is
+    # invisible until the other GPUs free up and nothing migrates to them.
+    baseline=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i "${gpu}")
+    for _ in $(seq 1 60); do   # up to 20 minutes
+      sleep 20
+      current=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i "${gpu}")
+      if (( current - baseline > 2000 )); then
+        log "  ${tag} has claimed GPU ${gpu} (${baseline} -> ${current} MiB)"
+        break
+      fi
+      if ! training_alive "${point}"; then
+        log "  WARNING: ${tag} exited before claiming GPU ${gpu} -- see ${OUT}/train_${tag}.log"
+        break
+      fi
+    done
   done
 
   sleep 300
@@ -188,6 +219,7 @@ while (( resolved < ${#POINTS[@]} )); do
         log "FAILED ${tag}: training died (see ${train_log})"
         RESOLVED[$point]=failed
         resolved=$((resolved + 1))
+        unset "GPU_TAKEN[${GPU_OF[$point]}]"
       fi
       continue
     fi
@@ -202,13 +234,15 @@ assert_policy_tokenizer_matches('${ckpt}')
       log "FAILED ${tag}: stale tokenizer_name in policy_preprocessor.json -- skipping eval"
       RESOLVED[$point]=bad_tokenizer
       resolved=$((resolved + 1))
+      unset "GPU_TAKEN[${GPU_OF[$point]}]"
       continue
     fi
 
+    # Evaluate on the GPU this rung trained on: its training just exited, so the card is
+    # free, and it is still marked taken so the queue will not put another rung there.
+    gpu="${GPU_OF[$point]}"
     for eval_lang in en vi; do
       eval_dir="${REPO}/outputs/eval_${tag}_${eval_lang}"
-      gpu="$(pick_gpu | head -1)"
-      if [[ -z "${gpu}" ]]; then log "${tag}: eval ${eval_lang} waiting for a free GPU"; break; fi
       [[ -d "${eval_dir}" ]] && mv "${eval_dir}" "${eval_dir}.stale-$(date +%Y%m%d%H%M%S)"
       log "eval ${tag} (${eval_lang}) on GPU ${gpu}"
       env CUDA_VISIBLE_DEVICES="${gpu}" "./run_eval_${eval_lang}.sh" "${ckpt}" "${eval_dir}" \
@@ -221,6 +255,7 @@ assert_policy_tokenizer_matches('${ckpt}')
       log "DONE ${tag}"
       RESOLVED[$point]=ok
       resolved=$((resolved + 1))
+      unset "GPU_TAKEN[${gpu}]"   # release the card for the next queued rung
     fi
   done
 done
