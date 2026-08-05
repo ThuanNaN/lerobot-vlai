@@ -37,6 +37,12 @@ DOSES=(10 25 50)
 NUM_GPUS=2
 PER_DEVICE_BATCH=8
 GRAD_ACCUM=8
+# Which two cards to use. Overridable so a rerun can avoid a GPU that is busy with
+# something else -- the d50 run was killed once by an NCCL collective timeout while
+# sharing the host with other jobs.
+DOSE_GPUS="${DOSE_GPUS:-0,1}"
+# HF Trainer's default is 1800s, and that is exactly what killed d50 the first time.
+DDP_TIMEOUT="${DDP_TIMEOUT:-7200}"
 
 mkdir -p "${OUT}"
 cd "${REPO}" || exit 1
@@ -77,6 +83,8 @@ for pct in "${DOSES[@]}"; do
       NUM_GPUS="${NUM_GPUS}" \
       PER_DEVICE_BATCH="${PER_DEVICE_BATCH}" \
       GRAD_ACCUM="${GRAD_ACCUM}" \
+      DDP_TIMEOUT="${DDP_TIMEOUT}" \
+      CUDA_VISIBLE_DEVICES="${DOSE_GPUS}" \
         ./vision/experiments/pretraining/vietnamese/train_gpus.sh
     ) > "${OUT}/stage1_dose_${pct}.log" 2>&1
     rc=$?
