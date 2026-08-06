@@ -1,0 +1,63 @@
+{
+  "scoring": "BOS-prefixed; every real token scored",
+  "first_new_id": 49280,
+  "n_new_token_ids": 8064,
+  "coverage": {
+    "d100": 1.0,
+    "stock": 1.0,
+    "intersect": 1.0
+  },
+  "pct_chars_new_tokens": 76.83124128312413,
+  "regions_script_A": [
+    {
+      "region": "toàn corpus",
+      "n_chars": 17925,
+      "pct_corpus": 100.0,
+      "bpc_stock": 4.241518565718184,
+      "bpc_d100": 4.343671827195797,
+      "d100_advantage": -0.10215326147761239
+    },
+    {
+      "region": "chữ cái có dấu VI",
+      "n_chars": 3801,
+      "pct_corpus": 21.205020920502093,
+      "bpc_stock": 6.028662620341976,
+      "bpc_d100": 4.4919335439284716,
+      "d100_advantage": 1.5367290764135042
+    },
+    {
+      "region": "chữ Latin không dấu",
+      "n_chars": 9280,
+      "pct_corpus": 51.77126917712692,
+      "bpc_stock": 3.9854438170545547,
+      "bpc_d100": 4.359153238494764,
+      "d100_advantage": -0.3737094214402097
+    },
+    {
+      "region": "khoảng trắng / dấu câu / số",
+      "n_chars": 4844,
+      "pct_corpus": 27.02370990237099,
+      "bpc_stock": 3.3297595062577083,
+      "bpc_d100": 4.1976746591207945,
+      "d100_advantage": -0.8679151528630862
+    }
+  ],
+  "regions_tokenizer_B_descriptive_only": [
+    {
+      "region": "ký tự token MỚI",
+      "n_chars": 13772,
+      "pct_corpus": 76.83124128312413,
+      "bpc_stock": 4.322644891192001,
+      "bpc_d100": 4.128874456950858,
+      "d100_advantage": 0.19377043424114238
+    },
+    {
+      "region": "ký tự token cũ",
+      "n_chars": 4153,
+      "pct_corpus": 23.16875871687587,
+      "bpc_stock": 3.9724909340241346,
+      "bpc_d100": 5.055973629028999,
+      "d100_advantage": -1.0834826950048648
+    }
+  ]
+}
