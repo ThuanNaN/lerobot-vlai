@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Stage 1 baseline: train SmolVLA on HuggingFaceVLA/libero (English instructions).
+# Benchmark the resulting checkpoint separately with run_eval.sh.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/.env" ]]; then
   set -a
@@ -8,7 +11,12 @@ if [[ -f "${SCRIPT_DIR}/.env" ]]; then
   set +a
 fi
 
+export MUJOCO_GL="${MUJOCO_GL:-egl}"
+
+HF_USER="${HF_USER:?Set HF_USER (in .env or env) to your Hugging Face username}"
 TASK_SUITE="${TASK_SUITE:-libero_10}"
+STEPS="${STEPS:-100000}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
 NUM_GPUS="${NUM_GPUS:-1}"
 
 WANDB_ARGS=()
@@ -28,25 +36,15 @@ fi
   --policy.type=smolvla \
   --policy.repo_id="${HF_USER}/libero-vlai" \
   --policy.load_vlm_weights=true \
+  --policy.optimizer_lr=1e-3 \
+  --policy.scheduler_decay_lr=1e-4 \
   --dataset.repo_id=HuggingFaceVLA/libero \
   --env.type=libero \
   --env.task="${TASK_SUITE}" \
-  --output_dir=./outputs/ \
-  --steps=100000 \
-  --batch_size=8 \
+  --output_dir=./outputs/train/ \
+  --steps="${STEPS}" \
+  --batch_size="${BATCH_SIZE}" \
   --eval.batch_size=1 \
   --eval.n_episodes=1 \
   --env_eval_freq=2000 \
   "${WANDB_ARGS[@]}"
-
-# Benchmark: full LIBERO protocol (4 suites x 10 episodes = 400 episodes)
-CHECKPOINT_PATH="./outputs/checkpoints/last/pretrained_model"
-
-uv run lerobot-eval \
-  --policy.path="${CHECKPOINT_PATH}" \
-  --env.type=libero \
-  --env.task=libero_spatial,libero_object,libero_goal,libero_10 \
-  --eval.batch_size=1 \
-  --eval.n_episodes=10 \
-  --env.max_parallel_tasks=1 \
-  --output_dir=./outputs/eval/

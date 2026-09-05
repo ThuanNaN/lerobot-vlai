@@ -13,6 +13,8 @@ if [[ -f "${SCRIPT_DIR}/.env" ]]; then
   set +a
 fi
 
+export MUJOCO_GL="${MUJOCO_GL:-egl}"
+
 HF_USER="${HF_USER:?Set HF_USER (in .env or env) to your Hugging Face username}"
 # Vietnamese LIBERO dataset (task_index-aligned; fixed on the Hub). Override with
 # DATASET_REPO if you use your own fork.

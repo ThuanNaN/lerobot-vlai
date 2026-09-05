@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Stage 3 eval: run a checkpoint against LIBERO with Vietnamese task instructions
-# substituted in via the Stage 1b override mechanism (envs/libero.py).
+# substituted in via the eval-side override mechanism (envs/libero.py).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/.env" ]]; then

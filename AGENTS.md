@@ -48,17 +48,17 @@ uv run ruff check . && uv run ruff format .            # Lint + format directly
 - **`.github/workflows/`** — CI: `quality.yml` (pre-commit), `fast_tests.yml` (base deps, every PR), `full_tests.yml` (all extras + E2E + GPU, post-approval), `latest_deps_tests.yml` (daily lockfile upgrade), `security.yml` (TruffleHog), `release.yml` (PyPI publish on tags).
 - **`docs/source/`** — HF documentation (`.mdx` files). Per-policy READMEs, hardware guides, tutorials. Built separately via `docs-requirements.txt` and CI workflows.
 - **`examples/`** — End-user tutorials and scripts organized by use case (dataset creation, training, hardware setup).
-- **`docker/`** — Dockerfiles for user (`Dockerfile.user`) and CI (`Dockerfile.internal`).
-- **`benchmarks/`** — Performance benchmarking scripts.
-- **Root files**: `pyproject.toml` (single source of truth for deps, build, tool config), `Makefile` (E2E test targets), `uv.lock`, `CONTRIBUTING.md` & `README.md` (general information).
+- **`docker/`** — Dockerfiles for user (`Dockerfile.user`), CI (`Dockerfile.internal`), and per-benchmark images (`Dockerfile.benchmark.<name>`, e.g. `libero`, `metaworld`, `robotwin`) run by `.github/workflows/benchmark_tests.yml`.
+- **Root files**: `pyproject.toml` (single source of truth for deps, build, tool config), `Makefile` (E2E test targets), `uv.lock`, `CONTRIBUTING.md` & `README.md` (general information), `AI_POLICY.md` (disclosure/review expectations for AI-assisted contributions).
 
 ## This fork: SmolVLA + LIBERO Vietnamese-instructions project
 
 This is a customized fork whose active work adapts the SmolVLA + LIBERO training pipeline so the policy follows **Vietnamese** task instructions (language is input-only — no Vietnamese generation). Design and staged plan live in `docs/superpowers/specs/2026-07-02-smolvla-vietnamese-instructions-design.md` and `docs/superpowers/plans/2026-07-02-smolvla-vietnamese-instructions.md` — read these first before touching the pipeline.
 
 - **Run wrappers** (root, all source `.env` for `HF_USER` / `WANDB_API_KEY` / `MUJOCO_GL=egl`; copy `.env.example`):
-  - `run.sh` — baseline: train `smolvla` on `HuggingFaceVLA/libero` (English), then eval across all 4 LIBERO suites. Multi-GPU via `NUM_GPUS>1` → `accelerate launch`.
-  - `run_vi.sh` — Stage 2: LoRA finetune on the Vietnamese-forked dataset. Its `TARGET_MODULES` regex widens PEFT beyond SmolVLA's default (action-expert q/v only) to also adapt the VLM **text-model** attention layers — required for language adaptation.
+  - `run_train.sh` — Stage 1 baseline: train `smolvla` on `HuggingFaceVLA/libero` (English) → `./outputs/train/`. Multi-GPU via `NUM_GPUS>1` → `accelerate launch`. Tunables: `TASK_SUITE`/`STEPS`/`BATCH_SIZE`/`NUM_GPUS`.
+  - `run_eval.sh <checkpoint> <output_dir>` — Stage 1 benchmark: eval a checkpoint across all 4 LIBERO suites (English instructions).
+  - `run_vi.sh` — Stage 2: LoRA finetune on the Vietnamese-forked dataset → `./outputs/train_vi/`. Its `TARGET_MODULES` regex widens PEFT beyond SmolVLA's default (action-expert q/v only) to also adapt the VLM **text-model** attention layers — required for language adaptation.
   - `run_eval_vi.sh <checkpoint> <output_dir>` — Stage 3: eval with Vietnamese instructions injected via `--env.task_language_overrides_path`.
 - **Key source modification**: eval instruction override. `lerobot-eval` on LIBERO sources the task string from the upstream `libero` package (English), **not** from the dataset — so translating the dataset alone does nothing at eval time. The knob added here: `EnvConfig.task_language_overrides_path` (`src/lerobot/envs/configs.py:327`) loads a per-suite/per-task JSON that `LiberoEnv` applies via `task_language_override` (`src/lerobot/envs/libero.py`).
 - **`vlai-experiments/vi-instructions/`** — the offline data/eval tooling (standalone scripts, not `lerobot.*` modules):
