@@ -181,3 +181,6 @@ outputs/
 *.part
 
 ref-repo/
+.agents/
+.claude/skills/
+skills-lock.json
